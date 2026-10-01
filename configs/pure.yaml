@@ -1,0 +1,72 @@
+# KuaiRand-Pure is used for dev purposes
+dataset:
+  name: pure
+  raw_dir: data/raw/KuaiRand-Pure/data
+  processed_dir: data/processed/pure
+  files:
+    standard_logs:
+      - log_standard_4_08_to_4_21_pure.csv
+      - log_standard_4_22_to_5_08_pure.csv
+    random_logs:
+      - log_random_4_22_to_5_08_pure.csv
+    users: user_features_pure.csv
+    items: video_features_basic_pure.csv
+
+# Time-based split on the `date` column (inclusive ranges, YYYY-MM-DD).
+# According to dataset docs: standard logs run 04-08..05-08; random-exposure logs only 04-22..05-08.
+split:
+  train: ["2022-04-08", "2022-04-30"]
+  val: ["2022-05-01", "2022-05-04"]
+  test: ["2022-05-05", "2022-05-08"]
+
+features:
+  # Only standard-policy logs feed features, so the random logs stay a clean evaluation set.
+  sources: [standard]
+  windows_days: [3, 7]        # lifetime ("all") is always included
+  ctr_prior_strength: 20.0    # Beta prior pseudo-impressions for smoothed rates
+  # Columns known to be computed after the fact. The pipeline refuses to emit
+  # them and a test enforces it.
+  leaky_columns:
+    - visible_status
+    - show_cnt
+    - show_user_num
+    - play_cnt
+    - play_user_num
+    - play_duration
+    - complete_play_cnt
+    - valid_play_cnt
+    - long_time_play_cnt
+    - like_cnt
+    - click_like_cnt
+    - comment_cnt
+    - share_cnt
+    - follow_cnt
+  # DuckDB memory cap for feature builds; it spills to disk beyond this.
+  duckdb_memory_limit: 2GB
+
+evaluation:
+  labels: [is_click, long_view]
+  ks: [10, 50, 100, 500]
+  headline_k: 100               # K shown in the results table
+  ranking_ks: [5, 10]
+  eval_sets: [val_standard, val_random, test_standard, test_random]
+  # Retrieval protocol: rank the full catalog per user.
+  retrieval:
+    users: warm                  # warm = seen in the fit window; or "all"
+    exclude_fit_positives: true  # don't recommend what the user already engaged with
+    diversity_k: 10              # list length for intra-list diversity
+    batch_users: 2048            # users scored per batch (memory vs speed)
+  # Ranking protocol: rank each user's actual impressions in the eval window.
+  ranking:
+    group_by: user               # "user" or "user_date"
+    gauc_weight: impressions     # "impressions" or "uniform"
+  seed: 17
+
+# Baselines to evaluate; omit a key to skip that model.
+baselines:
+  most_popular: {}
+  recent_popular: {window_days: 3}
+  item_cooc: {top_neighbors: 200, shrinkage: 10.0}
+  random: {}
+
+reports_dir: reports/pure

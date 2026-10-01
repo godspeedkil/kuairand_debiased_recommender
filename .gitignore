@@ -1,0 +1,14 @@
+# Datasets and generated outputs
+/data/
+/reports/*
+!/reports/.gitkeep
+.duckdb_tmp/
+.tmp/
+*.duckdb
+
+# Python tooling
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.venv/

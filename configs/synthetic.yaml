@@ -1,0 +1,18 @@
+# Small synthetic dataset with the KuaiRand-Pure schema.
+inherits: pure.yaml
+
+dataset:
+  name: synthetic
+  raw_dir: data/raw/synthetic/data
+  processed_dir: data/processed/synthetic
+
+synthetic:
+  n_users: 600
+  n_items: 400
+  n_authors: 120
+  latent_dim: 8
+  mean_standard_per_user_day: 6.0
+  mean_random_per_user_day: 2.0
+  seed: 7
+
+reports_dir: reports/synthetic
