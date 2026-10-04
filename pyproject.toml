@@ -20,7 +20,18 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.5"]
+dev = [
+    "pytest>=8",
+    "ruff>=0.5",
+    "black>=24.1",
+    # Run notebooks/ headlessly in the tests.
+    "nbclient>=0.10",
+    "nbformat>=5.9",
+    "ipykernel>=6.29",
+]
+
+[project.scripts]
+krec = "krec.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -28,6 +39,10 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]
 
 [tool.ruff]
 line-length = 110
