@@ -53,3 +53,22 @@ def test_contract_violation_is_caught(cfg, tmp_path):
     logs.to_csv(bad.raw_dir / name, index=False)
     with pytest.raises(DataContractError, match="is_rand"):
         ingest(bad)
+
+
+def test_event_order_follows_date_when_clocks_disagree(cfg, tmp_path):
+    late = load_config("configs/synthetic.yaml", root=tmp_path)
+    late.raw_dir.mkdir(parents=True)
+    for f in cfg.raw_dir.iterdir():
+        (late.raw_dir / f.name).write_bytes(f.read_bytes())
+    name = cfg.dataset.files.standard_logs[-1]
+    logs = pd.read_csv(late.raw_dir / name)
+    # like real KuaiRand: a row dated the next day (here into val) while later
+    # rows of its own day remain in train
+    day = logs[logs.date == 20220430].sort_values("time_ms")
+    logs.loc[day.index[-10], "date"] = 20220501
+    logs.to_csv(late.raw_dir / name, index=False)
+    ingest(late)
+    df = pd.read_parquet(late.processed_dir / "interactions.parquet")
+    order = df.split.map({"train": 0, "val": 1, "test": 2})
+    assert order.is_monotonic_increasing
+    assert pd.to_datetime(df.date).is_monotonic_increasing

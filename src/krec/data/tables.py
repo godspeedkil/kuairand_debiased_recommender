@@ -45,7 +45,7 @@ def load_eval_set(cfg: Config, name: str) -> pd.DataFrame:
     return _q(
         cfg,
         "SELECT * FROM interactions WHERE split = $s AND source = $src "
-        "ORDER BY time_ms",
+        "ORDER BY date, time_ms",
         s=es.split,
         src=es.source,
     )
@@ -59,7 +59,7 @@ def load_fit_window(
     return _q(
         cfg,
         f"SELECT * FROM interactions WHERE date < $d AND source IN ({src}) "
-        "ORDER BY time_ms",
+        "ORDER BY date, time_ms",
         d=before.date(),
     )
 

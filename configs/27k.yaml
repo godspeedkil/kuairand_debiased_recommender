@@ -1,0 +1,26 @@
+# KuaiRand-27K: the complete release (27,285 users, ~32M videos, ~322M rows).
+# Used for cross-version EDA (krec profile); not a training config yet.
+# The video_features_statistic_* files (~20GB) are never read and can be
+# deleted after extraction.
+inherits: pure.yaml
+
+dataset:
+  name: 27k
+  variant: 27k
+  raw_dir: data/raw/KuaiRand-27K/data
+  processed_dir: data/processed/27k
+  files:
+    standard_logs:
+      - log_standard_4_08_to_4_21_27k_part1.csv
+      - log_standard_4_08_to_4_21_27k_part2.csv
+      - log_standard_4_22_to_5_08_27k_part1.csv
+      - log_standard_4_22_to_5_08_27k_part2.csv
+    random_logs:
+      - log_random_4_22_to_5_08_27k.csv
+    users: user_features_27k.csv
+    items: video_features_basic_27k.csv
+
+features:
+  duckdb_memory_limit: 8GB
+
+reports_dir: reports/27k

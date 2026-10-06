@@ -71,11 +71,19 @@ def cmd_baselines(cfg) -> None:
     print(path.read_text())
 
 
+def cmd_profile(cfg) -> None:
+    """Summary tables for cross-version EDA (notebooks/02_versions.ipynb)."""
+    from krec.profile import build_profile
+
+    print(f"wrote {build_profile(cfg)}")
+
+
 COMMANDS = {
     "synth": cmd_synth,
     "ingest": cmd_ingest,
     "features": cmd_features,
     "baselines": cmd_baselines,
+    "profile": cmd_profile,
 }
 # What `krec all` runs, in order. `synth` is separate: real data is downloaded.
 # EDA lives in notebooks/01_eda.ipynb, which reads what `ingest` writes.

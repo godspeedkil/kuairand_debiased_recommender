@@ -65,6 +65,8 @@ class DatasetFiles(_Strict):
 
 class DatasetConfig(_Strict):
     name: str
+    # Which KuaiRand release this is
+    variant: Literal["pure", "1k", "27k"] = "pure"
     raw_dir: Path
     processed_dir: Path
     files: DatasetFiles
@@ -183,6 +185,8 @@ class SyntheticConfig(_Strict):
     mean_standard_per_user_day: float = Field(gt=0)
     mean_random_per_user_day: float = Field(gt=0)
     seed: int
+    # Share of items in the random-exposure candidate pool (1.0 = all items).
+    pool_fraction: float = Field(default=1.0, gt=0, le=1)
 
 
 # ---------------------------------------------------------------------------

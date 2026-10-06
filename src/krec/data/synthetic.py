@@ -113,6 +113,15 @@ def generate(cfg: Config) -> Path:
     click_logit = 1.2 * affinity + quality[None, :] - 0.8
     policy_logit = 1.5 * hype[None, :] + 1.0 * affinity
 
+    # random exposure only draws from a candidate pool of items, like KuaiRand's
+    # 7,583 pool videos.
+    in_pool = np.ones(n_items, dtype=bool)
+    if p.pool_fraction < 1:
+        pool_rng = np.random.default_rng(p.seed + 1)
+        n_pool = max(1, round(p.pool_fraction * n_items))
+        in_pool[:] = False
+        in_pool[pool_rng.choice(n_items, n_pool, replace=False)] = True
+
     # ---- logs, day by day ----
     rows = []
     day = START
@@ -127,7 +136,8 @@ def generate(cfg: Config) -> Path:
         ):
             if source == "random" and day < RANDOM_START:
                 continue
-            counts = np.minimum(rng.poisson(mean * activity), eligible.sum())
+            allowed = eligible if source == "standard" else eligible & in_pool
+            counts = np.minimum(rng.poisson(mean * activity), allowed.sum())
 
             # Gumbel-top-k: add Gumbel noise to the logits and take each user's top
             # `counts` items. Equivalent to sampling without replacement with
@@ -136,7 +146,7 @@ def generate(cfg: Config) -> Path:
                 policy_logit if source == "standard" else np.zeros((n_users, n_items))
             )
             gumbel = logits + rng.gumbel(size=(n_users, n_items))
-            gumbel[:, ~eligible] = -np.inf
+            gumbel[:, ~allowed] = -np.inf
             order = np.argsort(-gumbel, axis=1)
 
             # One row per impression: user u with counts=3 -> its ranks 0, 1, 2.
@@ -249,3 +259,37 @@ def _users(rng, nu: int) -> pd.DataFrame:
     for i, k in enumerate(sizes):
         df[f"onehot_feat{i}"] = rng.integers(0, k, nu)
     return df
+
+
+def derive_variants(full: Config, pure: Config, k1: Config, n_users_1k: int) -> None:
+    """Write Pure- and 1K-style datasets from a full (27K-style) synthetic one."""
+    src, files = full.raw_dir, full.dataset.files
+    std = pd.concat(pd.read_csv(src / f) for f in files.standard_logs)
+    rnd = pd.concat(pd.read_csv(src / f) for f in files.random_logs)
+    users = pd.read_csv(src / files.users)
+    items = pd.read_csv(src / files.items)
+    pool = set(rnd.video_id)
+
+    rng = np.random.default_rng(full.synthetic.seed + 2)
+    sample = set(rng.choice(users.user_id, n_users_1k, replace=False))
+    in_1k = lambda df: df[df.user_id.isin(sample)]  # noqa: E731
+    seen_1k = set(in_1k(std).video_id) | set(in_1k(rnd).video_id)
+
+    for cfg, std_v, rnd_v, users_v, items_v in (
+        (
+            pure,
+            std[std.video_id.isin(pool)],
+            rnd,
+            users,
+            items[items.video_id.isin(pool)],
+        ),
+        (k1, in_1k(std), in_1k(rnd), in_1k(users), items[items.video_id.isin(seen_1k)]),
+    ):
+        out, f = cfg.raw_dir, cfg.dataset.files
+        out.mkdir(parents=True, exist_ok=True)
+        first_half = std_v.date < 20220422  # same file split as the real releases
+        std_v[first_half].to_csv(out / f.standard_logs[0], index=False)
+        std_v[~first_half].to_csv(out / f.standard_logs[-1], index=False)
+        rnd_v.to_csv(out / f.random_logs[0], index=False)
+        users_v.to_csv(out / f.users, index=False)
+        items_v.to_csv(out / f.items, index=False)

@@ -118,7 +118,9 @@ def ingest(cfg: Config) -> dict:
             play_time_ms::BIGINT                                AS play_time_ms, 
             duration_ms::BIGINT                                 AS duration_ms
         FROM logs
-        ORDER BY time_ms, user_id, item_id
+        -- date first: ~0.7% of late-night rows carry the next day's date, and
+        -- splits use date, so event order must never cross a split boundary
+        ORDER BY date, time_ms, user_id, item_id
     """)
     _check(
         con,

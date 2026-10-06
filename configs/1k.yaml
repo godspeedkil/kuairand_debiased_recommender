@@ -1,0 +1,19 @@
+# KuaiRand-1K: 1,000 users sampled from 27K, with all their logs.
+# Used for cross-version EDA (krec profile); not a training config yet.
+inherits: pure.yaml
+
+dataset:
+  name: 1k
+  variant: 1k
+  raw_dir: data/raw/KuaiRand-1K/data
+  processed_dir: data/processed/1k
+  files:
+    standard_logs:
+      - log_standard_4_08_to_4_21_1k.csv
+      - log_standard_4_22_to_5_08_1k.csv
+    random_logs:
+      - log_random_4_22_to_5_08_1k.csv
+    users: user_features_1k.csv
+    items: video_features_basic_1k.csv
+
+reports_dir: reports/1k
