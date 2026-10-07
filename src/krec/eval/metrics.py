@@ -1,17 +1,10 @@
 """
-Relevant metrics
-- per user:
-    - top k
-    - recall@k
-    - hit@k
-    - nDCG@k
-    - intra-list diversity
-- grouped (also user by default, could be user-day):
-    - GAUC
-    - nDCG@k
-- others:
-    - AUC
-    - Gini coefficient
+Evaluation metrics.
+
+- Per user: top k, recall@k, hit@k, NDCG@k, intra-list diversity.
+- Per group (user by default, or user-day): GAUC, NDCG@k.
+- Overall: AUC, Gini coefficient.
+- Bootstrap confidence intervals over groups, for the grouped metrics.
 """
 
 from __future__ import annotations
@@ -20,31 +13,81 @@ import numpy as np
 import pandas as pd
 
 
-def top_k(scores: np.ndarray, k: int, rng: np.random.Generator) -> np.ndarray:
-    """Indices of the k highest scores per row, best first. `-inf` = excluded."""
+def top_k(
+    scores: np.ndarray,
+    k: int,
+    rng: np.random.Generator | None = None,
+    key: np.ndarray | None = None,
+) -> np.ndarray:
+    """Return indices of the k highest scores per row, best first.
+
+    Equal scores are ordered by `key`, a random permutation unless given, so every
+    tied item is equally likely to be picked.
+
+    Parameters
+    ----------
+    scores : np.ndarray
+        Scores, shape (n_rows, n_items), -inf for excluded items.
+    k : int
+        Indices per row.
+    rng : np.random.Generator, optional
+        Draws the tie-break key when `key` is not given.
+    key : np.ndarray, optional
+        Tie-break order per column.
+
+    Returns
+    -------
+    np.ndarray
+        Column indices, shape (n_rows, k); -1 where a row has fewer than k finite
+        scores.
+    """
     scores = np.asarray(scores, dtype=np.float64)
-    k = min(k, scores.shape[1])
-    # Shuffle the columns first. argpartition picks positions from the values
-    # alone, so after a random shuffle every tied item is equally likely to land
-    # in a chosen position.
-    perm = rng.permutation(scores.shape[1])
-    s = scores[:, perm]
-    part = np.argpartition(-s, k - 1, axis=1)[:, :k]
-    vals = np.take_along_axis(s, part, axis=1)
-    order = np.lexsort((part, -vals), axis=1)  # by score, then shuffled position
-    return perm[np.take_along_axis(part, order, axis=1)]
+    n = scores.shape[1]
+    k = min(k, n)
+    if key is None:
+        key = rng.permutation(n)
+    # k-th largest per row; only items at or above it can make the list
+    kth = np.partition(scores, n - k, axis=1)[:, n - k]
+    out = np.empty((len(scores), k), dtype=np.int64)
+    for r in range(len(scores)):
+        cand = np.flatnonzero(scores[r] >= kth[r])
+        top = cand[np.lexsort((key[cand], -scores[r, cand]))[:k]]
+        out[r] = np.where(np.isneginf(scores[r, top]), -1, top)
+    return out
 
 
 def _discounts(k: int) -> np.ndarray:
+    """DCG discounts for ranks 1..k.
+
+    Parameters
+    ----------
+    k : int
+        Number of ranks.
+
+    Returns
+    -------
+    np.ndarray
+        1 / log2(rank + 1) per rank.
+    """
     return 1.0 / np.log2(np.arange(2, k + 2))
 
 
 def retrieval_metrics(hits: np.ndarray, n_targets: np.ndarray, ks: list[int]) -> dict:
-    """Per-user retrieval metrics from a hit matrix.
+    """Per-user recall, hit rate, and NDCG at each cut-off.
 
-    hits: (n_users, K) bool, hits[u, r] = the item at rank r is a target.
-    n_targets: (n_users,) number of reachable targets per user (> 0).
-    Returns {metric@k: per-user array}.
+    Parameters
+    ----------
+    hits : np.ndarray
+        Bool, shape (n_users, K): whether the item at each rank is a target.
+    n_targets : np.ndarray
+        Reachable targets per user (> 0), shape (n_users,).
+    ks : list of int
+        Cut-offs.
+
+    Returns
+    -------
+    dict[str, np.ndarray]
+        `recall@k`, `hit@k` and `ndcg@k`, each a per-user array.
     """
     hits = hits.astype(np.float64)
     disc = _discounts(hits.shape[1])
@@ -63,7 +106,18 @@ def retrieval_metrics(hits: np.ndarray, n_targets: np.ndarray, ks: list[int]) ->
 
 
 def gini(counts: np.ndarray) -> float:
-    """Gini coefficient of non-negative counts (0 = equal, near 1 = concentrated)."""
+    """Gini coefficient of non-negative counts.
+
+    Parameters
+    ----------
+    counts : np.ndarray
+        Count per item.
+
+    Returns
+    -------
+    float
+        0 for equal counts, close to 1 when concentrated on few items.
+    """
     x = np.sort(np.asarray(counts, dtype=np.float64))
     n, total = x.size, x.sum()
     if n == 0 or total == 0:
@@ -72,7 +126,18 @@ def gini(counts: np.ndarray) -> float:
 
 
 def intra_list_diversity(topk_categories: np.ndarray) -> np.ndarray:
-    """Share of item pairs in each list whose categories differ. (n, k) -> (n,)."""
+    """Share of item pairs in each list whose categories differ.
+
+    Parameters
+    ----------
+    topk_categories : np.ndarray
+        Category of each listed item, shape (n_lists, k).
+
+    Returns
+    -------
+    np.ndarray
+        Diversity per list, shape (n_lists,).
+    """
     c = topk_categories
     k = c.shape[1]
     if k < 2:
@@ -81,13 +146,59 @@ def intra_list_diversity(topk_categories: np.ndarray) -> np.ndarray:
     return diff.sum(axis=(1, 2)) / (k * (k - 1))
 
 
+def bootstrap_ci(
+    values: np.ndarray,
+    weights: np.ndarray,
+    n_boot: int,
+    rng: np.random.Generator,
+    level: float = 0.95,
+) -> list[float]:
+    """Percentile interval of a weighted mean, resampling groups with replacement.
+
+    Parameters
+    ----------
+    values : np.ndarray
+        Value per group.
+    weights : np.ndarray
+        Weight per group.
+    n_boot : int
+        Number of resamples.
+    rng : np.random.Generator
+        Source of the resamples.
+    level : float, default 0.95
+        Interval coverage.
+
+    Returns
+    -------
+    list of float
+        Lower and upper bound.
+    """
+    values, weights = np.asarray(values, float), np.asarray(weights, float)
+    idx = rng.integers(0, len(values), size=(n_boot, len(values)))
+    means = (values[idx] * weights[idx]).sum(axis=1) / weights[idx].sum(axis=1)
+    return np.quantile(means, [(1 - level) / 2, (1 + level) / 2]).tolist()
+
+
 # ---------------------------------------------------------------------------
 # Impression-list ranking metrics
 # ---------------------------------------------------------------------------
 
 
 def auc(labels: np.ndarray, scores: np.ndarray) -> float:
-    """ROC AUC: P(random positive scores above random negative), ties count half."""
+    """ROC AUC, with ties counted as half.
+
+    Parameters
+    ----------
+    labels : np.ndarray
+        Binary labels.
+    scores : np.ndarray
+        Score per label.
+
+    Returns
+    -------
+    float
+        P(random positive scores above random negative), NaN if missing either
+    """
     labels = np.asarray(labels)
     n_pos = labels.sum()
     n_neg = labels.size - n_pos
@@ -105,12 +216,34 @@ def grouped_ranking_metrics(
     ks: list[int],
     rng: np.random.Generator,
     gauc_weight: str = "impressions",
+    n_boot: int = 0,
 ) -> dict:
-    """AUC, GAUC and nDCG@k for ranking each group's impressions by score.
+    """AUC, GAUC and NDCG@k for ranking each group's impressions by score.
 
-    GAUC averages per-group AUC over groups that have both a positive and a
-    negative, weighted by impressions or uniformly.
-    nDCG@k averages over groups with at least one positive.
+    Parameters
+    ----------
+    df : pd.DataFrame
+        One row per impression.
+    group_col : str
+        Column that defines the groups, e.g. user.
+    label_col : str
+        Binary label column.
+    score_col : str
+        Model score column.
+    ks : list of int
+        Cut-offs for NDCG.
+    rng : np.random.Generator
+        Breaks score ties in NDCG and draws bootstrap resamples.
+    gauc_weight : {"impressions", "uniform"}, default "impressions"
+        Weight of each group in GAUC.
+    n_boot : int, default 0
+        Bootstrap resamples for 95% intervals; 0 for none.
+
+    Returns
+    -------
+    dict
+        `auc`, `gauc`, `gauc_groups`, `ndcg@k`, `ndcg_groups`, `gauc_ci`,
+        and `ndcg@k_ci`
     """
     d = pd.DataFrame(
         {
@@ -136,6 +269,8 @@ def grouped_ranking_metrics(
     w = valid.n if gauc_weight == "impressions" else pd.Series(1.0, index=valid.index)
     out["gauc"] = float((group_auc * w).sum() / w.sum()) if len(valid) else float("nan")
     out["gauc_groups"] = int(len(valid))
+    if n_boot and len(valid):
+        out["gauc_ci"] = bootstrap_ci(group_auc.to_numpy(), w.to_numpy(), n_boot, rng)
 
     # nDCG@k within groups. Shuffle rows first so the stable sort breaks score
     # ties at random rather than by original row order.
@@ -150,10 +285,10 @@ def grouped_ranking_metrics(
         dcg = pd.Series(gain, index=d.index).groupby(d.group).sum()
         igain = np.where(ideal_rank < k, ideal.y / np.log2(ideal_rank + 2), 0.0)
         idcg = pd.Series(igain, index=ideal.index).groupby(ideal.group).sum()
-        out[f"ndcg@{k}"] = (
-            float((dcg[has_pos] / idcg[has_pos]).mean())
-            if len(has_pos)
-            else float("nan")
-        )
+        per_group = (dcg[has_pos] / idcg[has_pos]).to_numpy()
+        out[f"ndcg@{k}"] = float(per_group.mean()) if len(has_pos) else float("nan")
+        if n_boot and len(has_pos):
+            ones = np.ones(len(per_group))
+            out[f"ndcg@{k}_ci"] = bootstrap_ci(per_group, ones, n_boot, rng)
     out["ndcg_groups"] = int(len(has_pos))
     return out

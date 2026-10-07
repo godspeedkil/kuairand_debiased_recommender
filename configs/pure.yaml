@@ -50,23 +50,29 @@ evaluation:
   headline_k: 100               # K shown in the results table
   ranking_ks: [5, 10]
   eval_sets: [val_standard, val_random, test_standard, test_random]
-  # Retrieval protocol: rank the full catalog per user.
+  # Retrieval protocol: rank the full catalog per user. Runs on *_standard eval
+  # sets only: the random log's unbiased labels cover just the inserted pool videos.
   retrieval:
     users: warm                  # warm = seen in the fit window; or "all"
     exclude_fit_positives: true  # don't recommend what the user already engaged with
     diversity_k: 10              # list length for intra-list diversity
     batch_users: 2048            # users scored per batch (memory vs speed)
+    # Refuse whole-catalog scoring above this many user x item scores (~2 min);
+    # beyond it a model needs its own recommend(). 27K would be ~9e11.
+    max_dense_scores: 10000000000
   # Ranking protocol: rank each user's actual impressions in the eval window.
   ranking:
     group_by: user               # "user" or "user_date"
     gauc_weight: impressions     # "impressions" or "uniform"
+  # Resamples of users for 95% intervals on GAUC and NDCG (impressions).
+  bootstrap_samples: 200
   seed: 17
 
 # Baselines to evaluate; omit a key to skip that model.
 baselines:
   most_popular: {}
   recent_popular: {window_days: 3}
-  item_cooc: {top_neighbors: 200, shrinkage: 10.0}
+  item_cooc: {top_neighbors: 200, shrinkage: 10.0, max_history: 200}
   random: {}
 
 reports_dir: reports/pure

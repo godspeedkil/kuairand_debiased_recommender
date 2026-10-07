@@ -59,16 +59,15 @@ def cmd_features(cfg) -> None:
 
 def cmd_baselines(cfg) -> None:
     from krec.models.baselines import build_baselines
-    from krec.run import evaluate_models, write_results
+    from krec.run import evaluate_models, results_summary, write_results
 
     seed = cfg.evaluation.seed
+    k = cfg.evaluation.headline_k
     results = evaluate_models(
         cfg, lambda: build_baselines(cfg.baselines, seed), "baselines"
     )
-    path = write_results(
-        results, cfg.reports_path / "baselines", cfg.evaluation.headline_k
-    )
-    print(path.read_text())
+    path = write_results(results, cfg.reports_path / "baselines", k)
+    print(f"\n{results_summary(results, k)}\nFull tables: {path}")
 
 
 def cmd_profile(cfg) -> None:

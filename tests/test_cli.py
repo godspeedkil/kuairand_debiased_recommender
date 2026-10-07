@@ -17,8 +17,20 @@ def test_features_cover_every_eval_set_row(cfg):
         assert len(feats) == len(load_eval_set(cfg, name))
 
 
-def test_baselines_report_every_eval_set_and_model(cfg):
+def test_baselines_report_every_eval_set_and_model(cfg, capsys):
     COMMANDS["baselines"](cfg)
+    printed = capsys.readouterr().out
+    assert "test: fit item_cooc" in printed  # timed status lines
+    assert "Full tables:" in printed
+    # every table, in the terminal summary and in results.md, lines up
+    summary = printed.split("baselines (synthetic), label ")[1:]
+    md = (cfg.reports_path / "baselines" / "results.md").read_text()
+    tables = [t.split("\n\n")[0].splitlines()[1:] for t in summary] + [
+        [ln for ln in block.splitlines() if ln.startswith("|")]
+        for block in md.split("**Label:")[1:]
+    ]
+    for lines in tables:
+        assert len({len(ln) for ln in lines}) == 1, lines
     results = json.loads((cfg.reports_path / "baselines" / "results.json").read_text())
     assert list(results["eval_sets"]) == cfg.evaluation.eval_sets
     for block in results["eval_sets"].values():

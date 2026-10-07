@@ -6,6 +6,7 @@ import pytest
 
 from krec.eval.metrics import (
     auc,
+    bootstrap_ci,
     gini,
     grouped_ranking_metrics,
     intra_list_diversity,
@@ -109,3 +110,24 @@ def test_gini_extremes():
 def test_intra_list_diversity():
     cats = np.array([[1, 1, 1], [1, 2, 3], [1, 1, 2]])
     assert intra_list_diversity(cats).tolist() == pytest.approx([0.0, 1.0, 2 / 3])
+
+
+def test_bootstrap_ci_brackets_the_weighted_mean():
+    rng = np.random.default_rng(0)
+    v, w = rng.random(500), rng.integers(1, 10, 500)
+    lo, hi = bootstrap_ci(v, w, 300, np.random.default_rng(1))
+    assert lo < np.average(v, weights=w) < hi
+    assert hi - lo < 0.1
+    assert bootstrap_ci(np.full(10, 0.3), np.ones(10), 50, rng) == pytest.approx(
+        [0.3, 0.3]
+    )
+
+
+def test_top_k_pads_rows_with_too_few_finite_scores():
+    s = np.array([[0.3, -np.inf, 0.9, -np.inf]])
+    assert top_k(s, 3, np.random.default_rng(0)).tolist() == [[2, 0, -1]]
+
+
+def test_top_k_with_a_shared_key_orders_ties_by_it():
+    key = np.array([3, 0, 2, 1])
+    assert top_k(np.zeros((2, 4)), 3, key=key).tolist() == [[1, 3, 2]] * 2

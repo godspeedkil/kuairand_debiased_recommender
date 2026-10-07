@@ -115,6 +115,8 @@ class RetrievalConfig(_Strict):
     exclude_fit_positives: bool
     diversity_k: PositiveInt
     batch_users: PositiveInt
+    # cap on users x catalog for models that can only score the whole catalog
+    max_dense_scores: PositiveInt
 
 
 class RankingConfig(_Strict):
@@ -130,6 +132,7 @@ class EvaluationConfig(_Strict):
     eval_sets: list[EvalSetName] = Field(min_length=1)
     retrieval: RetrievalConfig
     ranking: RankingConfig
+    bootstrap_samples: int = Field(ge=0)  # 0 = no confidence intervals
     seed: int
 
     @model_validator(mode="after")
@@ -154,6 +157,7 @@ class ItemCoocParams(_Strict):
     signal: Label = "is_click"
     top_neighbors: PositiveInt
     shrinkage: float = Field(ge=0)
+    max_history: PositiveInt  # most recent positives per user
 
 
 class RandomParams(_Strict):

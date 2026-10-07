@@ -1,5 +1,5 @@
 # KuaiRand-1K: 1,000 users sampled from 27K, with all their logs.
-# Used for cross-version EDA (krec profile); not a training config yet.
+# The development release: full user histories at a size that fits a laptop.
 inherits: pure.yaml
 
 dataset:
@@ -15,5 +15,10 @@ dataset:
       - log_random_4_22_to_5_08_1k.csv
     users: user_features_1k.csv
     items: video_features_basic_1k.csv
+
+evaluation:
+  retrieval:
+    # ~4.4M videos in the catalog: 16 users x 4.4M scores is ~0.6GB per batch
+    batch_users: 16
 
 reports_dir: reports/1k
