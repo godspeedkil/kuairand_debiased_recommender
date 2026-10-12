@@ -18,6 +18,7 @@ dependencies = [
     "pydantic>=2.5",
     "matplotlib>=3.8",
     "tqdm>=4.66",
+    "torch>=2.2",
 ]
 
 [project.optional-dependencies]

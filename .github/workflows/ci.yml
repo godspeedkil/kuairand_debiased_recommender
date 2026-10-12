@@ -17,6 +17,8 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
+      # CPU build of PyTorch: PyPI's default wheel adds several GB of CUDA libraries
+      - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
       - run: make install
       # lint and tests on synthetic data
       - run: make check
