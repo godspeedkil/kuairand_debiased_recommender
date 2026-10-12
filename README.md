@@ -58,11 +58,14 @@ evidence per pool video than Pure, and its intervals are about 5x wider.
 
 ## Plan
 
-1. **Pure:** a learned ranker on point-in-time features, then debiasing methods that
-   use the random log's train window.
-2. **1K:** a content-based model built from full user histories (tags, author,
-   duration, etc.).
-3. **27K:** the same models at full scale. 1K's users are in all three releases, so all
+The stages follow a production recommender: retrieval narrows the catalog, ranking
+orders the candidates, and debiasing corrects the ranking for exposure.
+
+1. **Retrieval on 1K:** a two-tower model over video content (tags, author,
+   duration, etc.) and full user histories.
+2. **Ranking on Pure:** a learned ranker on point-in-time features.
+3. **Debiasing on Pure:** methods that use the random log's train window.
+4. **27K:** the same models at full scale. 1K's users are in all three releases, so all
    models are compared on 1K users' random-log rows.
 
 ## Quickstart
@@ -72,9 +75,12 @@ make install                              # package plus dev tools
 bash scripts/download_kuairand.sh Pure    # or 1K, 27K
 krec ingest --config configs/pure.yaml    # or 1k.yaml, 27k.yaml
 krec baselines --config configs/pure.yaml # tables in reports/*/baselines/
+krec retrieve --config configs/1k.yaml    # tables in reports/*/retrieval/
 ```
 
-`krec all` runs ingest, features, and baselines. `krec profile` summarizes a release
+`krec all` runs ingest, features, and baselines. `krec retrieve` trains the two-tower
+model on CPU and compares it with the baselines; its settings are under `two_tower`
+in `configs/pure.yaml`. `krec profile` summarizes a release
 for notebook analysis. `krec synth --config configs/synthetic.yaml` makes
 a small synthetic dataset with planted exposure bias, for trying things without a
 download.

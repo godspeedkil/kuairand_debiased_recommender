@@ -181,6 +181,26 @@ class BaselinesConfig(_Strict):
         }
 
 
+class TwoTowerConfig(_Strict):
+    """Two-tower retriever: content-based video tower, history-based user tower."""
+
+    signal: Label = "is_click"  # label that counts as a positive
+    max_history: PositiveInt  # most recent positives in the user tower
+    max_tags: PositiveInt  # tags kept per video
+    min_count: PositiveInt  # positives a value needs for its own embedding
+    id_min_count: PositiveInt | None  # positives for a video id embedding, None: off
+    field_dim: PositiveInt
+    user_field_dim: PositiveInt
+    hidden: PositiveInt
+    dim: PositiveInt  # output embedding size
+    temperature: float = Field(gt=0)
+    history_grad: bool  # backprop through history lookups (much slower)
+    batch_size: PositiveInt
+    epochs: PositiveInt
+    lr: float = Field(gt=0)
+    max_examples: PositiveInt | None = None  # most recent positives used to train
+
+
 class SyntheticConfig(_Strict):
     n_users: PositiveInt
     n_items: PositiveInt
@@ -204,6 +224,7 @@ class Config(_Strict):
     features: FeaturesConfig
     evaluation: EvaluationConfig
     baselines: BaselinesConfig
+    two_tower: TwoTowerConfig
     reports_dir: Path
     synthetic: SyntheticConfig | None = None  # only for the synthetic dataset
     root: Path = REPO_ROOT  # relative paths resolve against this

@@ -75,4 +75,21 @@ baselines:
   item_cooc: {top_neighbors: 200, shrinkage: 10.0, max_history: 200}
   random: {}
 
+# Two-tower retriever (krec retrieve). Videos are described by content, plus an id
+# for videos with at least id_min_count positives.
+two_tower:
+  max_history: 50
+  max_tags: 4
+  min_count: 1
+  id_min_count: 5
+  field_dim: 32
+  user_field_dim: 8
+  hidden: 256
+  dim: 64
+  temperature: 0.05
+  history_grad: false
+  batch_size: 2048
+  epochs: 2
+  lr: 0.002
+
 reports_dir: reports/pure

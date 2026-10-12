@@ -15,4 +15,9 @@ synthetic:
   mean_random_per_user_day: 2.0
   seed: 7
 
+# Few examples per epoch here, so train longer on smaller batches.
+two_tower:
+  epochs: 10
+  batch_size: 512
+
 reports_dir: reports/synthetic

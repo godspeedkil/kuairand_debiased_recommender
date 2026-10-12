@@ -1,3 +1,5 @@
+.vscode/
+
 # Datasets and generated outputs
 /data/
 /reports/*

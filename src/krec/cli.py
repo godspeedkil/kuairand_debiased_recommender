@@ -70,6 +70,27 @@ def cmd_baselines(cfg) -> None:
     print(f"\n{results_summary(results, k)}\nFull tables: {path}")
 
 
+def cmd_retrieve(cfg) -> None:
+    """Evaluate the two-tower retriever next to the baselines."""
+    from krec.data.tables import load_items, load_users
+    from krec.models.baselines import build_baselines
+    from krec.retrieval.twotower import build_two_tower
+    from krec.run import evaluate_models, results_summary, write_results
+
+    items, users = load_items(cfg), load_users(cfg)
+    k = cfg.evaluation.headline_k
+
+    def models():
+        return [
+            *build_baselines(cfg.baselines, cfg.evaluation.seed),
+            build_two_tower(cfg, items, users),
+        ]
+
+    results = evaluate_models(cfg, models, "retrieval")
+    path = write_results(results, cfg.reports_path / "retrieval", k)
+    print(f"\n{results_summary(results, k)}\nFull tables: {path}")
+
+
 def cmd_profile(cfg) -> None:
     """Summary tables for cross-version EDA (notebooks/02_versions.ipynb)."""
     from krec.profile import build_profile
@@ -82,6 +103,7 @@ COMMANDS = {
     "ingest": cmd_ingest,
     "features": cmd_features,
     "baselines": cmd_baselines,
+    "retrieve": cmd_retrieve,
     "profile": cmd_profile,
 }
 # What `krec all` runs, in order. `synth` is separate: real data is downloaded.
